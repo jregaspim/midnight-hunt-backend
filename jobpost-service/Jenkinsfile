@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+    tools {
+        maven 'maven-3.9.6'
+    }
+    stages {
+        stage("Build Maven") {
+            steps {
+                // Checkout the code from the specified branch
+                checkout scmGit(branches: [[name: '*/main']],
+                                extensions: [],
+                                userRemoteConfigs: [[url: 'https://github.com/jregaspim/midnight-hunt-backend']])
+                // Run Maven clean install
+                bat 'mvn clean install'
+            }
+        }
+        stage("Build Docker Image for jobpost-service") {
+            steps {
+                // Change directory to jobpost-service
+                dir('jobpost-service') {
+                    echo 'Changed directory to jobpost-service'
+                    // Run Maven tests
+                    bat 'mvn test'
+
+                    // Build the Docker image from the jobpost-service directory
+                    script {
+                        // Ensure the Dockerfile is correctly referenced
+                        bat "docker build -t midnight007/jobpost-docker ."
+                    }
+                }
+            }
+        }
+        stage("Push Docker Image to Hub") {
+            steps {
+                script {
+                    // Use credentials for Docker Hub login
+                    withCredentials([string(credentialsId: 'dockerhubpwd', variable: 'dockerhubpwd')]) {
+                        bat "docker login -u midnight007 -p ${dockerhubpwd}"
+                    }
+                    // Push the Docker image to Docker Hub
+                    bat "docker push midnight007/jobpost-docker"
+                }
+            }
+        }
+    }
+}
